@@ -1,0 +1,244 @@
+.container {
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.header {
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 1rem;
+}
+
+.title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.subtitle {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  margin-top: 0.5rem;
+}
+
+.content {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+}
+
+.card {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.cardTitle {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 0.8rem;
+}
+
+/* QR Code Area */
+.qrContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 2rem;
+  background-color: var(--bg-tertiary);
+  border-radius: var(--border-radius-sm);
+  border: 1px dashed var(--border-color);
+  min-height: 300px;
+}
+
+.qrPlaceholder {
+  width: 200px;
+  height: 200px;
+  background-color: white;
+  padding: 10px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 1rem;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.statusBadge.disconnected {
+  background-color: rgba(239, 68, 68, 0.15);
+  color: var(--error-color);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.statusBadge.connected {
+  background-color: rgba(16, 185, 129, 0.15);
+  color: var(--success-color);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+/* Connection Method Tabs */
+.methodTabs {
+  display: flex;
+  background-color: var(--bg-primary);
+  border-radius: var(--border-radius-sm);
+  padding: 0.3rem;
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+  border: 1px solid var(--border-color);
+}
+
+.methodTab {
+  flex: 1;
+  padding: 0.5rem;
+  text-align: center;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  border-radius: var(--border-radius-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.methodTab.active {
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.pairingCodeBox {
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: 4px;
+  color: var(--accent-color);
+  background-color: var(--bg-primary);
+  padding: 1rem 2rem;
+  border-radius: var(--border-radius-sm);
+  border: 1px dashed var(--accent-color);
+  margin: 1rem 0;
+  user-select: all;
+}
+
+/* Settings Area */
+.settingsList {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.settingItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  background-color: var(--bg-tertiary);
+  border-radius: var(--border-radius-sm);
+  border: 1px solid transparent;
+  transition: border-color var(--transition-fast);
+}
+
+.settingItem:hover {
+  border-color: var(--border-color);
+}
+
+.settingText {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.settingLabel {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.settingDesc {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+/* Toggle Switch */
+.toggle {
+  width: 44px;
+  height: 24px;
+  border-radius: 20px;
+  background-color: var(--bg-primary);
+  position: relative;
+  cursor: pointer;
+  border: 1px solid var(--border-color);
+  transition: background-color var(--transition-fast);
+}
+
+.toggle.active {
+  background-color: var(--success-color);
+  border-color: var(--success-color);
+}
+
+.toggleKnob {
+  width: 18px;
+  height: 18px;
+  background-color: white;
+  border-radius: 50%;
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  transition: transform var(--transition-fast);
+  box-shadow: var(--shadow-sm);
+}
+
+.toggle.active .toggleKnob {
+  transform: translateX(20px);
+}
+
+.messagePreview {
+  background-color: #075E54; /* Zap Dark Theme bg */
+  border-radius: 8px;
+  padding: 1rem;
+  position: relative;
+  margin-top: 1rem;
+}
+
+.messageBubble {
+  background-color: #056162; /* Zap Dark Theme bubble */
+  padding: 0.8rem 1rem;
+  border-radius: 0 8px 8px 8px;
+  color: #E9EDEF;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  box-shadow: 0 1px 0.5px rgba(0,0,0,0.13);
+  display: inline-block;
+  max-width: 90%;
+}
+
+.messageHighlight {
+  color: #53BDEB;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+@media (max-width: 1024px) {
+  .content {
+    grid-template-columns: 1fr;
+  }
+}

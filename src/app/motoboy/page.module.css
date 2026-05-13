@@ -1,0 +1,294 @@
+.header {
+  padding: 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.profileInfo {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 2px solid var(--border-color);
+  object-fit: cover;
+}
+
+.name {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.status {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+/* Toggle Switch */
+.toggleContainer {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.toggleLabel {
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.toggleLabel.online { color: var(--success-color); }
+.toggleLabel.offline { color: var(--text-muted); }
+
+.toggle {
+  width: 50px;
+  height: 28px;
+  border-radius: 20px;
+  background-color: var(--bg-tertiary);
+  position: relative;
+  cursor: pointer;
+  border: 1px solid var(--border-color);
+  transition: background-color var(--transition-fast);
+}
+
+.toggle.active {
+  background-color: var(--success-color);
+  border-color: var(--success-color);
+}
+
+.toggleKnob {
+  width: 22px;
+  height: 22px;
+  background-color: white;
+  border-radius: 50%;
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  transition: transform var(--transition-fast);
+  box-shadow: var(--shadow-sm);
+}
+
+.toggle.active .toggleKnob {
+  transform: translateX(22px);
+}
+
+/* Map area */
+.mapArea {
+  height: 200px;
+  background-color: #1a1a2e; /* Dark placeholder map */
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.gpsIndicator {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: rgba(20, 20, 20, 0.7);
+  backdrop-filter: blur(4px);
+  padding: 0.4rem 0.8rem;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  color: white;
+}
+
+.pulseDot {
+  width: 8px;
+  height: 8px;
+  background-color: var(--success-color);
+  border-radius: 50%;
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+  70% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+/* Content Area */
+.content {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.sectionTitle {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 1rem;
+}
+
+/* Incoming Order Card */
+.callCard {
+  background: linear-gradient(145deg, rgba(99, 102, 241, 0.1), rgba(99, 102, 241, 0.05));
+  border: 1px solid var(--accent-color);
+  border-radius: var(--border-radius);
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  box-shadow: 0 0 20px rgba(99, 102, 241, 0.15);
+  animation: ring 2s infinite;
+}
+
+@keyframes ring {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+  100% { transform: scale(1); }
+}
+
+.callHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.callBadge {
+  background-color: var(--accent-color);
+  color: white;
+  padding: 0.3rem 0.8rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.callPrice {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--success-color);
+}
+
+.routeInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  margin: 0.5rem 0;
+  position: relative;
+}
+
+.routePoint {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  position: relative;
+  z-index: 2;
+}
+
+.routeIcon {
+  width: 24px;
+  height: 24px;
+  background-color: var(--bg-secondary);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--text-muted);
+}
+
+.routeIcon.start { border-color: var(--accent-color); color: var(--accent-color); }
+.routeIcon.end { border-color: var(--success-color); color: var(--success-color); }
+
+.routeLine {
+  position: absolute;
+  left: 11px;
+  top: 24px;
+  bottom: 24px;
+  width: 2px;
+  background-color: var(--border-color);
+  z-index: 1;
+}
+
+.routeText {
+  display: flex;
+  flex-direction: column;
+}
+
+.routeLabel {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.routeAddress {
+  font-size: 0.95rem;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.actionButtons {
+  display: flex;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+.btnReject {
+  flex: 1;
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  padding: 1rem;
+  border-radius: var(--border-radius-sm);
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.btnAccept {
+  flex: 2;
+  background-color: var(--accent-color);
+  color: white;
+  border: none;
+  padding: 1rem;
+  border-radius: var(--border-radius-sm);
+  font-weight: 600;
+  font-size: 1rem;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+}
+
+/* Current Delivery Card */
+.deliveryCard {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  padding: 1.5rem;
+}
+
+.deliveryCard .routeInfo {
+  margin-bottom: 1.5rem;
+}
+
+.btnSwipe {
+  width: 100%;
+  background-color: var(--success-bg);
+  color: var(--success-color);
+  border: 1px solid var(--success-color);
+  padding: 1.2rem;
+  border-radius: var(--border-radius);
+  font-size: 1.1rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
