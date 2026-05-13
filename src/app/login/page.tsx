@@ -8,8 +8,10 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
 
 export default function Login() {
+  const [isRegistering, setIsRegistering] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [fullName, setFullName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -20,19 +22,17 @@ export default function Login() {
     setError(null);
     setLoading(true);
 
-    // 1. Autenticar com Supabase Auth
     const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
     if (authError || !authData.user) {
-      setError("Email ou senha inválidos. Verifique suas credenciais.");
+      setError("Email ou senha inválidos.");
       setLoading(false);
       return;
     }
 
-    // 2. Buscar o role do usuário para redirecionar corretamente
     const { data: profile } = await supabase
       .from("user_profiles")
       .select("role")
@@ -41,7 +41,6 @@ export default function Login() {
 
     const role = profile?.role;
 
-    // 3. Redirecionar conforme o papel (full reload para garantir que o cookie de sessão seja lido)
     if (role === "admin_master") {
       window.location.href = "/admin-master";
     } else if (role === "motoboy") {
@@ -51,27 +50,92 @@ export default function Login() {
     }
   };
 
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+
+    // Registro básico para demonstração do trial de 45 dias
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          full_name: fullName,
+        }
+      }
+    });
+
+    if (authError || !authData.user) {
+      setError("Erro ao criar conta: " + authError?.message);
+      setLoading(false);
+      return;
+    }
+
+    // Por padrão, novos cadastros via site são do tipo 'estabelecimento'
+    await supabase.from("user_profiles").insert({
+      id: authData.user.id,
+      full_name: fullName,
+      role: "estabelecimento"
+    });
+
+    alert("Conta criada! Aproveite seus 45 dias grátis. Você será redirecionado.");
+    window.location.href = "/dashboard";
+  };
+
   return (
     <div className={styles.container}>
+      <div className={styles.backgroundGlow}></div>
+      
       <div className={styles.loginCard}>
         <div className={styles.header}>
           <div className={styles.logoIcon}>
             <Bike size={32} />
           </div>
-          <h1 className={styles.title}>Bem-vindo de volta</h1>
-          <p className={styles.subtitle}>Acesse o painel do seu estabelecimento</p>
+          <h1 className={styles.title}>
+            {isRegistering ? "Comece agora" : "Bem-vindo de volta"}
+          </h1>
+          <p className={styles.subtitle}>
+            {isRegistering 
+              ? "Crie sua conta e aproveite 45 dias grátis!" 
+              : "Gerencie suas entregas em tempo real"}
+          </p>
         </div>
 
-        <form className={styles.form} onSubmit={handleLogin}>
+        {isRegistering && (
+          <div className={styles.trialBadge}>
+            ✨ Período de teste de 45 dias ativado
+          </div>
+        )}
+
+        <form className={styles.form} onSubmit={isRegistering ? handleRegister : handleLogin}>
+          {isRegistering && (
+            <div className={styles.inputGroup}>
+              <label htmlFor="fullName">Nome completo ou Empresa</label>
+              <div className={styles.inputWrapper}>
+                <Bike size={18} className={styles.inputIcon} />
+                <input 
+                  type="text" 
+                  id="fullName" 
+                  className={styles.input} 
+                  placeholder="Seu nome ou nome da loja"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+          )}
+
           <div className={styles.inputGroup}>
-            <label htmlFor="email">Email corporativo</label>
+            <label htmlFor="email">Email</label>
             <div className={styles.inputWrapper}>
               <Mail size={18} className={styles.inputIcon} />
               <input 
                 type="email" 
                 id="email" 
                 className={styles.input} 
-                placeholder="contato@restaurante.com"
+                placeholder="contato@exemplo.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -82,7 +146,7 @@ export default function Login() {
           <div className={styles.inputGroup}>
             <div style={{display: "flex", justifyContent: "space-between"}}>
               <label htmlFor="password">Senha</label>
-              <Link href="/forgot-password" className={styles.link} style={{fontSize: "0.85rem"}}>Esqueceu a senha?</Link>
+              {!isRegistering && <Link href="/forgot-password" className={styles.link} style={{fontSize: "0.85rem"}}>Esqueceu?</Link>}
             </div>
             <div className={styles.inputWrapper}>
               <Lock size={18} className={styles.inputIcon} />
@@ -99,17 +163,7 @@ export default function Login() {
           </div>
 
           {error && (
-            <div style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "0.5rem",
-              padding: "0.75rem 1rem",
-              backgroundColor: "rgba(239, 68, 68, 0.1)",
-              border: "1px solid rgba(239, 68, 68, 0.3)",
-              borderRadius: "8px",
-              color: "#f87171",
-              fontSize: "0.875rem",
-            }}>
+            <div className={styles.errorBanner}>
               <AlertCircle size={16} />
               {error}
             </div>
@@ -119,14 +173,21 @@ export default function Login() {
             type="submit"
             className={styles.btnPrimary}
             disabled={loading}
-            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem", opacity: loading ? 0.7 : 1 }}
           >
-            {loading ? <><Loader2 size={18} style={{ animation: "spin 1s linear infinite" }} /> Entrando...</> : "Entrar no Painel"}
+            {loading ? (
+              <Loader2 className={styles.spinner} />
+            ) : (
+              isRegistering ? "Criar Conta Grátis" : "Entrar no Painel"
+            )}
           </button>
         </form>
 
         <div className={styles.footer}>
-          Não tem uma conta? <span className={styles.link}>Faça o teste de 45 dias</span>
+          {isRegistering ? (
+            <>Já tem uma conta? <button onClick={() => setIsRegistering(false)} className={styles.textBtn}>Fazer Login</button></>
+          ) : (
+            <>Não tem uma conta? <button onClick={() => setIsRegistering(true)} className={styles.textBtn}>Testar 45 dias grátis</button></>
+          )}
         </div>
       </div>
     </div>

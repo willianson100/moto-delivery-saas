@@ -30,11 +30,37 @@ export default function Dashboard() {
   });
 
   const fetchData = async () => {
-    // 1. Motoboys
+    // 0. Obter Usuário Atual e seu Tenant
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data: profile } = await supabase
+      .from("user_profiles")
+      .select("*")
+      .eq("id", user.id)
+      .single();
+
+    if (!profile) return;
+
+    // Proteção de Rota: Se for motoboy, vai pro app do motoboy
+    if (profile.role === 'motoboy') {
+      window.location.href = "/motoboy";
+      return;
+    }
+    // Se for admin master, vai pro painel mestre
+    if (profile.role === 'admin_master') {
+      window.location.href = "/admin-master";
+      return;
+    }
+
+    const tenantId = profile.tenant_id;
+
+    // 1. Motoboys vinculados ao restaurante (Tenant)
     const { data: motoboysData } = await supabase
       .from("user_profiles")
       .select("*")
-      .eq("role", "motoboy");
+      .eq("role", "motoboy")
+      .eq("tenant_id", tenantId);
     
     if (motoboysData) {
       setMotoboys(motoboysData);
@@ -44,13 +70,14 @@ export default function Dashboard() {
       }));
     }
 
-    // 2. Pedidos do dia
+    // 2. Pedidos do dia deste restaurante (Tenant)
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
     const { data: ordersData } = await supabase
       .from("orders")
       .select("*")
+      .eq("tenant_id", tenantId)
       .gte("created_at", today.toISOString())
       .order("created_at", { ascending: false });
 

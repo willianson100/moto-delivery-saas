@@ -210,261 +210,207 @@ export default function MotoboyApp() {
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
   const [isOnline, setIsOnline] = useState(false);
-  const [isAtRestaurant, setIsAtRestaurant] = useState(false);
-  const [gpsError, setGpsError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState<DeliveryOrder[]>([]);
-  const [activeOrders, setActiveOrders] = useState<DeliveryOrder[]>([]);
-  const watchIdRef = useRef<number | null>(null);
+  const [activeOrder, setActiveOrder] = useState<any>(null);
 
-  // 1. Carregar Usuário e Perfil
+  // Carregar dados iniciais
   useEffect(() => {
-    const loadUser = async () => {
+    const init = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        setUser(user);
-        const { data: profile } = await supabase
-          .from("user_profiles")
-          .select("*")
-          .eq("id", user.id)
-          .single();
-        setProfile(profile);
-        setIsAtRestaurant(profile?.is_at_restaurant || false);
+      if (!user) {
+        window.location.href = "/login";
+        return;
       }
-    };
-    loadUser();
-  }, []);
+      setUser(user);
 
-  // 2. Carregar Pedidos Reais
-  const fetchOrders = async () => {
-    const { data: ordersData } = await supabase
+      const { data: profile } = await supabase
+        .from("user_profiles")
+        .select("*")
+        .eq("id", user.id)
+        .single();
+      
+      setProfile(profile);
+      setIsOnline(profile?.status === "online");
+      fetchData(user.id);
+      setLoading(false);
+    };
+    init();
+
+    // Realtime para novos pedidos
+    const channel = supabase
+      .channel("motoboy_updates")
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => {
+        if (user) fetchData(user.id);
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [user?.id]);
+
+  const fetchData = async (userId: string) => {
+    // Buscar pedidos disponíveis
+    const { data: available } = await supabase
       .from("orders")
       .select("*")
       .eq("status", "pendente")
       .order("created_at", { ascending: false });
-
-    if (ordersData) {
-      setOrders(ordersData as any);
-    }
-
-    // Carregar pedidos aceitos por este motoboy
-    if (user) {
-      const { data: activeData } = await supabase
-        .from("motoboy_active_orders")
-        .select("*, order:orders(*)")
-        .eq("motoboy_id", user.id)
-        .eq("status", "active");
-
-      if (activeData) {
-        setActiveOrders(activeData.map((a: any) => ({ ...a.order, status: "aceito" })) as any);
-      }
-    }
-  };
-
-  useEffect(() => {
-    if (user) fetchOrders();
-
-    // Inscrição Realtime para novos pedidos
-    const channel = supabase
-      .channel("orders_changes")
-      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => {
-        fetchOrders();
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [user]);
-
-  // GPS Toggle
-  const handleToggleOnline = async () => {
-    if (isOnline) {
-      setIsOnline(false);
-      setIsAtRestaurant(false);
-      setGpsError(null);
-      if (watchIdRef.current !== null) {
-        navigator.geolocation.clearWatch(watchIdRef.current);
-        watchIdRef.current = null;
-      }
-      return;
-    }
-    if (!navigator.geolocation) {
-      alert("Seu navegador não suporta GPS.");
-      return;
-    }
-    const id = navigator.geolocation.watchPosition(
-      async (pos) => {
-        setIsOnline(true);
-        setGpsError(null);
-        // Atualizar localização no banco
-        if (user) {
-          await supabase.from("user_profiles").update({
-            latitude: pos.coords.latitude,
-            longitude: pos.coords.longitude,
-            last_location_update: new Date().toISOString()
-          }).eq("id", user.id);
-        }
-      },
-      (error) => {
-        setIsOnline(false);
-        setGpsError("Erro no GPS. Verifique as permissões.");
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
-    watchIdRef.current = id;
-  };
-
-  const handleAccept = async (orderId: string) => {
-    if (!user) return;
     
-    // 1. Criar registro na tabela de pedidos ativos
-    const { error } = await supabase.from("motoboy_active_orders").insert({
-      motoboy_id: user.id,
-      order_id: orderId,
-      status: "active"
-    });
+    setOrders(available || []);
 
+    // Buscar pedido ativo deste motoboy
+    const { data: active } = await supabase
+      .from("orders")
+      .select("*")
+      .eq("motoboy_id", userId)
+      .in("status", ["aceito", "em_entrega"])
+      .single();
+    
+    setActiveOrder(active);
+  };
+
+  const handleToggleOnline = async () => {
+    const nextStatus = isOnline ? "offline" : "online";
+    setIsOnline(!isOnline);
+    await supabase.from("user_profiles").update({ status: nextStatus }).eq("id", user.id);
+  };
+
+  const handleAcceptOrder = async (orderId: string) => {
+    const { error } = await supabase
+      .from("orders")
+      .update({ 
+        status: "aceito", 
+        motoboy_id: user.id,
+        accepted_at: new Date().toISOString()
+      })
+      .eq("id", orderId);
+    
+    if (!error) fetchData(user.id);
+  };
+
+  const handleStatusUpdate = async (nextStatus: string) => {
+    const { error } = await supabase
+      .from("orders")
+      .update({ status: nextStatus })
+      .eq("id", activeOrder.id);
+    
     if (!error) {
-      // 2. Atualizar status do pedido para 'aceito'
-      await supabase.from("orders").update({ status: "aceito" }).eq("id", orderId);
-      fetchOrders();
+      if (nextStatus === "entregue") {
+        setActiveOrder(null);
+      }
+      fetchData(user.id);
     }
   };
 
-  const handleReject = async (orderId: string) => {
-    // Apenas remove da visualização local por enquanto
-    setOrders(prev => prev.filter(o => o.id !== orderId));
-  };
-
-  const pendingOrders = orders.filter(o => o.status === "pendente");
+  if (loading) return <div className={styles.loading}>Carregando App...</div>;
 
   return (
-    <div style={{ background: "#0f172a", minHeight: "100vh", paddingBottom: "5rem", color: "#f1f5f9" }}>
-      {/* Header */}
-      <header style={{
-        display: "flex", justifyContent: "space-between", alignItems: "center",
-        padding: "1rem 1.25rem", background: "#1e293b", borderBottom: "1px solid rgba(255,255,255,0.06)",
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-          <Image src={user?.user_metadata?.avatar_url || "https://i.pravatar.cc/150?img=11"} alt="Avatar" width={44} height={44}
-            style={{ borderRadius: "50%", border: "2px solid #334155" }} />
+    <div className={styles.mobileContainer}>
+      {/* Header Compacto */}
+      <header className={styles.header}>
+        <div className={styles.userInfo}>
+          <div className={styles.avatar}>
+            <Bike size={24} />
+          </div>
           <div>
-            <div style={{ fontWeight: 700, fontSize: "0.95rem" }}>{profile?.name || "Entregador"}</div>
-            <div style={{ fontSize: "0.78rem", color: "#64748b" }}>Moto Ativa</div>
-          </div>
-        </div>
-
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "0.4rem" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.75rem", color: "#94a3b8" }}>
-            <Package size={13} />
-            <span>{activeOrders.length}/{profile?.bag_capacity || 3} pedidos</span>
-          </div>
-
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <span style={{ fontSize: "0.8rem", color: isOnline ? "#22c55e" : "#64748b", fontWeight: 600 }}>
-              {isOnline ? "Online" : "Offline"}
+            <h2 className={styles.userName}>{profile?.full_name || "Motoboy"}</h2>
+            <span className={styles.userStatus}>
+              {isOnline ? "🟢 Disponível para entregas" : "⚪ Você está offline"}
             </span>
-            <div onClick={handleToggleOnline} style={{
-              width: 42, height: 24, borderRadius: "12px", cursor: "pointer",
-              background: isOnline ? "#22c55e" : "#334155", position: "relative",
-            }}>
-              <div style={{
-                width: 18, height: 18, borderRadius: "50%", background: "white",
-                position: "absolute", top: 3, left: isOnline ? 21 : 3, transition: "0.2s"
-              }} />
-            </div>
           </div>
         </div>
+        <button 
+          onClick={handleToggleOnline} 
+          className={`${styles.onlineBtn} ${isOnline ? styles.online : ""}`}
+        >
+          {isOnline ? "FICAR OFFLINE" : "FICAR ONLINE"}
+        </button>
       </header>
 
-      {/* Conteúdo */}
-      <div style={{ padding: "1rem 1.25rem" }}>
-        {isOnline && (
-          <>
-            <div style={{
-              display: "flex", justifyContent: "space-between", alignItems: "center",
-              background: "rgba(255,255,255,0.04)", borderRadius: "12px",
-              padding: "0.75rem 1rem", marginBottom: "1rem", border: "1px solid rgba(255,255,255,0.06)",
-            }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.82rem", color: "#22c55e" }}>
-                <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#22c55e" }} />
-                Transmitindo GPS
-              </div>
-              <button
-                onClick={async () => {
-                  const newVal = !isAtRestaurant;
-                  setIsAtRestaurant(newVal);
-                  if (user) await supabase.from("user_profiles").update({ is_at_restaurant: newVal }).eq("id", user.id);
-                }}
-                style={{
-                  padding: "0.35rem 0.75rem", borderRadius: "8px",
-                  background: isAtRestaurant ? "rgba(34,197,94,0.2)" : "rgba(255,255,255,0.05)",
-                  color: isAtRestaurant ? "#4ade80" : "#94a3b8",
-                  fontSize: "0.78rem", fontWeight: 600, border: "1px solid rgba(255,255,255,0.1)"
-                }}
-              >
-                <Store size={13} style={{ marginRight: 4 }} />
-                {isAtRestaurant ? "No restaurante ✓" : "No restaurante?"}
-              </button>
+      <main className={styles.main}>
+        {!isOnline ? (
+          <div className={styles.emptyState}>
+            <div className={styles.emptyIcon}><Bike size={48} /></div>
+            <h3>Você está Offline</h3>
+            <p>Fique online para começar a receber pedidos da sua região.</p>
+          </div>
+        ) : activeOrder ? (
+          /* TELA DE ENTREGA ATIVA */
+          <div className={styles.activeDelivery}>
+            <div className={styles.deliveryBadge}>ENTREGA EM ANDAMENTO</div>
+            
+            <div className={styles.deliverySection}>
+              <div className={styles.sectionLabel}><Store size={16} /> RETIRAR EM:</div>
+              <p className={styles.addressText}>{activeOrder.pickup_address || "Restaurante Central"}</p>
             </div>
 
-            {/* Pedidos na Bag */}
-            {activeOrders.length > 0 && (
-              <div style={{ marginBottom: "1.25rem" }}>
-                <h2 style={{ fontSize: "0.85rem", color: "#64748b", textTransform: "uppercase", marginBottom: "0.6rem" }}>
-                  <Bike size={13} style={{ marginRight: 6 }} /> Na sua bag
-                </h2>
-                {activeOrders.map((order, i) => (
-                  <div key={order.id} style={{
-                    display: "flex", alignItems: "center", gap: "0.75rem",
-                    padding: "0.6rem 0.85rem", marginBottom: "0.4rem",
-                    background: "rgba(34,197,94,0.1)", borderRadius: "10px",
-                  }}>
-                    <span style={{ background: "#22c55e", color: "#0f172a", width: 20, height: 20, borderRadius: "50%", textAlign: "center", fontSize: "0.75rem", fontWeight: 700 }}>{i+1}</span>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: "0.85rem", fontWeight: 600 }}>{order.customer_name}</div>
-                      <div style={{ fontSize: "0.75rem", color: "#64748b" }}>{order.address}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            <div className={styles.deliverySection}>
+              <div className={styles.sectionLabel}><MapPin size={16} /> ENTREGAR EM:</div>
+              <p className={styles.addressTitle}>{activeOrder.customer_name}</p>
+              <p className={styles.addressText}>{activeOrder.address}</p>
+              <a 
+                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(activeOrder.address)}`}
+                target="_blank"
+                className={styles.gpsLink}
+              >
+                <Navigation size={18} /> ABRIR NO GPS
+              </a>
+            </div>
 
-            {/* Pedidos Disponíveis */}
-            {isAtRestaurant ? (
-              <div>
-                <h2 style={{ fontSize: "0.85rem", color: "#64748b", textTransform: "uppercase", marginBottom: "0.6rem" }}>
-                  <Package size={13} style={{ marginRight: 6 }} /> Pedidos disponíveis ({pendingOrders.length})
-                </h2>
-                {pendingOrders.map(order => (
-                  <OrderCard
-                    key={order.id}
-                    order={order}
-                    myId={user?.id}
-                    currentRouteColor={activeOrders[0]?.route_color_tag ?? null}
-                    activeCount={activeOrders.length}
-                    bagCapacity={profile?.bag_capacity || 3}
-                    onAccept={handleAccept}
-                    onReject={handleReject}
-                  />
-                ))}
+            <div className={styles.deliveryFooter}>
+              <div className={styles.paymentInfo}>
+                <span>Pagamento: {activeOrder.payment_method}</span>
+                <strong>R$ {activeOrder.total_amount?.toFixed(2)}</strong>
+              </div>
+
+              {activeOrder.status === "aceito" ? (
+                <button 
+                  onClick={() => handleStatusUpdate("em_entrega")}
+                  className={styles.actionBtnPrimary}
+                >
+                  <Package size={20} /> JÁ RETIREI O PEDIDO
+                </button>
+              ) : (
+                <button 
+                  onClick={() => handleStatusUpdate("entregue")}
+                  className={styles.actionBtnSuccess}
+                >
+                  <CheckCircle size={20} /> FINALIZAR ENTREGA
+                </button>
+              )}
+            </div>
+          </div>
+        ) : (
+          /* LISTA DE PEDIDOS DISPONÍVEIS */
+          <div className={styles.availableList}>
+            <h3 className={styles.sectionTitle}>Pedidos Disponíveis ({orders.length})</h3>
+            {orders.length === 0 ? (
+              <div className={styles.noOrders}>
+                <Clock size={32} />
+                <p>Aguardando novos pedidos...</p>
               </div>
             ) : (
-              <div style={{ textAlign: "center", padding: "2rem", background: "rgba(255,255,255,0.03)", borderRadius: "14px" }}>
-                <h3 style={{ color: "#94a3b8", fontSize: "0.95rem" }}>Você está em rota</h3>
-                <p style={{ fontSize: "0.82rem", color: "#64748b" }}>Toque em "No restaurante?" ao chegar.</p>
-              </div>
+              orders.map(order => (
+                <div key={order.id} className={styles.orderCard}>
+                  <div className={styles.orderHeader}>
+                    <span className={styles.orderDist}>📍 {order.distance_km || "2.5"} km</span>
+                    <span className={styles.orderValue}>R$ {order.total_amount?.toFixed(2)}</span>
+                  </div>
+                  <p className={styles.orderAddr}>{order.address}</p>
+                  <button 
+                    onClick={() => handleAcceptOrder(order.id)}
+                    className={styles.acceptBtn}
+                  >
+                    ACEITAR ENTREGA
+                  </button>
+                </div>
+              ))
             )}
-          </>
+          </div>
         )}
-      </div>
-
-      {/* Nav Inferior */}
-      <nav style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "#1e293b", display: "flex", padding: "0.6rem 0" }}>
-        <div style={{ flex: 1, textAlign: "center", color: "#3b82f6", fontSize: "0.7rem" }}><Navigation size={20} /><br/>Início</div>
-        <div style={{ flex: 1, textAlign: "center", color: "#64748b", fontSize: "0.7rem" }}><Package size={20} /><br/>Histórico</div>
-        <div style={{ flex: 1, textAlign: "center", color: "#64748b", fontSize: "0.7rem" }}><ToggleLeft size={20} /><br/>Perfil</div>
-      </nav>
+      </main>
     </div>
+  );
+}
   );
 }
