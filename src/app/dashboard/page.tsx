@@ -300,21 +300,20 @@ export default function Dashboard() {
 
       {/* Quick Actions Bottom Bar */}
       <div className={styles.quickActions}>
-        <span style={{fontWeight: 600, color: "var(--text-primary)", display: "flex", alignItems: "center", marginRight: "1rem"}}>Ações rápidas</span>
-        <button className={`${styles.actionBtn} ${styles.primaryAction}`} onClick={() => setIsAddOrderOpen(true)}>
-          <PlusCircle size={16} /> Novo pedido
+        <button className={`${styles.quickActionBtn} ${styles.primaryAction}`} onClick={() => setOrderModalOpen(true)}>
+          <PlusCircle /> <span>Novo pedido</span>
         </button>
-        <button className={styles.actionBtn} onClick={() => setIsAddMotoboyOpen(true)}>
-          <UserPlus size={16} /> Novo motoboy
+        <button className={styles.quickActionBtn} onClick={() => setMotoboyModalOpen(true)}>
+          <UserPlus /> <span>Novo motoboy</span>
         </button>
-        <button className={styles.actionBtn} onClick={() => router.push("/dashboard/whatsapp")}>
-          <Send size={16} /> Enviar mensagem
+        <button className={styles.quickActionBtn} onClick={() => window.location.href = '/dashboard/whatsapp'}>
+          <Send /> <span>Mensagem</span>
         </button>
-        <button className={styles.actionBtn} onClick={() => alert("Relatório diário: " + stats.todayOrders + " pedidos realizados.")}>
-          <ClipboardList size={16} /> Relatório do dia
+        <button className={styles.quickActionBtn} onClick={() => alert('Relatório em desenvolvimento')}>
+          <ClipboardList /> <span>Relatório</span>
         </button>
-        <button className={styles.actionBtn} style={{marginLeft: "auto"}} onClick={() => alert("Configurações: Gerenciamento de taxas e zonas em breve.")}>
-          <Settings size={16} /> Configurações
+        <button className={styles.quickActionBtn} onClick={() => alert('Configurações em desenvolvimento')}>
+          <Settings /> <span>Ajustes</span>
         </button>
       </div>
     </div>
