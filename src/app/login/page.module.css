@@ -206,6 +206,16 @@
   text-decoration: underline;
 }
 
+.addressRow {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 1rem;
+}
+
+.addressRow .input {
+  padding-left: 1rem;
+}
+
 @media (max-width: 480px) {
   .loginCard {
     padding: 1.5rem;

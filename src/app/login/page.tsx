@@ -12,6 +12,10 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
+  const [taxId, setTaxId] = useState("");
+  const [cep, setCep] = useState("");
+  const [street, setStreet] = useState("");
+  const [number, setNumber] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -55,7 +59,27 @@ export default function Login() {
     setError(null);
     setLoading(true);
 
-    // Registro básico para demonstração do trial de 45 dias
+    // 0. Capturar IP
+    let ip = "0.0.0.0";
+    try {
+      const ipRes = await fetch("https://api.ipify.org?format=json");
+      const ipData = await ipRes.json();
+      ip = ipData.ip;
+    } catch (e) { console.error("Erro ao obter IP", e); }
+
+    // Validar Unicidade de CNPJ/CPF
+    const { data: existing } = await supabase
+      .from("tenants")
+      .select("id")
+      .eq("tax_id", taxId)
+      .single();
+
+    if (existing) {
+      setError("Este CNPJ/CPF já possui um trial ativo em outra conta.");
+      setLoading(false);
+      return;
+    }
+
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password,
@@ -72,14 +96,37 @@ export default function Login() {
       return;
     }
 
-    // Por padrão, novos cadastros via site são do tipo 'estabelecimento'
+    // 1. Criar o Tenant com travas de segurança
+    const { data: tenantData, error: tenantError } = await supabase
+      .from("tenants")
+      .insert({
+        name: fullName,
+        tax_id: taxId,
+        registration_ip: ip,
+        cep,
+        street,
+        number,
+        plan: "trial",
+        subscription_status: "trial"
+      })
+      .select()
+      .single();
+
+    if (tenantError) {
+      setError("Erro ao criar empresa: " + tenantError.message);
+      setLoading(false);
+      return;
+    }
+
+    // 2. Criar o Perfil
     await supabase.from("user_profiles").insert({
       id: authData.user.id,
-      full_name: fullName,
-      role: "estabelecimento"
+      name: fullName,
+      role: "tenant_admin",
+      tenant_id: tenantData.id
     });
 
-    alert("Conta criada! Aproveite seus 45 dias grátis. Você será redirecionado.");
+    alert("Conta criada! Aproveite seus 45 dias grátis.");
     window.location.href = "/dashboard";
   };
 
@@ -110,21 +157,79 @@ export default function Login() {
 
         <form className={styles.form} onSubmit={isRegistering ? handleRegister : handleLogin}>
           {isRegistering && (
-            <div className={styles.inputGroup}>
-              <label htmlFor="fullName">Nome completo ou Empresa</label>
-              <div className={styles.inputWrapper}>
-                <Bike size={18} className={styles.inputIcon} />
+            <>
+              <div className={styles.inputGroup}>
+                <label htmlFor="fullName">Nome da Empresa / Loja</label>
+                <div className={styles.inputWrapper}>
+                  <Bike size={18} className={styles.inputIcon} />
+                  <input 
+                    type="text" 
+                    id="fullName" 
+                    className={styles.input} 
+                    placeholder="Ex: Pizzaria Napoli"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className={styles.inputGroup}>
+                <label htmlFor="taxId">CNPJ ou CPF (Segurança)</label>
+                <div className={styles.inputWrapper}>
+                  <Lock size={18} className={styles.inputIcon} />
+                  <input 
+                    type="text" 
+                    id="taxId" 
+                    className={styles.input} 
+                    placeholder="00.000.000/0001-00"
+                    value={taxId}
+                    onChange={(e) => setTaxId(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className={styles.addressRow}>
+                <div className={styles.inputGroup}>
+                  <label htmlFor="cep">CEP</label>
+                  <input 
+                    type="text" 
+                    id="cep" 
+                    className={styles.input} 
+                    placeholder="00000-000"
+                    value={cep}
+                    onChange={(e) => setCep(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className={styles.inputGroup}>
+                  <label htmlFor="number">Nº</label>
+                  <input 
+                    type="text" 
+                    id="number" 
+                    className={styles.input} 
+                    placeholder="123"
+                    value={number}
+                    onChange={(e) => setNumber(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className={styles.inputGroup}>
+                <label htmlFor="street">Rua / Logradouro</label>
                 <input 
                   type="text" 
-                  id="fullName" 
+                  id="street" 
                   className={styles.input} 
-                  placeholder="Seu nome ou nome da loja"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
+                  placeholder="Nome da rua"
+                  value={street}
+                  onChange={(e) => setStreet(e.target.value)}
                   required
                 />
               </div>
-            </div>
+            </>
           )}
 
           <div className={styles.inputGroup}>

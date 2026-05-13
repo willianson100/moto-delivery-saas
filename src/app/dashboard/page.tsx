@@ -20,6 +20,7 @@ export default function Dashboard() {
   const [isAddOrderOpen, setIsAddOrderOpen] = useState(false);
   const [motoboys, setMotoboys] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
+  const [locations, setLocations] = useState<any[]>([]);
   const [stats, setStats] = useState({
     todayOrders: 0,
     inDelivery: 0,
@@ -108,9 +109,33 @@ export default function Dashboard() {
       .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => fetchData())
       .subscribe();
 
+    const locationChannel = supabase
+      .channel("live_locations")
+      .on("postgres_changes", { event: "*", schema: "public", table: "motoboy_locations" }, (payload) => {
+        if (payload.new) {
+          setLocations(prev => {
+            const idx = prev.findIndex(l => l.motoboy_id === payload.new.motoboy_id);
+            if (idx >= 0) {
+              const next = [...prev];
+              next[idx] = payload.new;
+              return next;
+            }
+            return [...prev, payload.new];
+          });
+        }
+      })
+      .subscribe();
+
+    const fetchInitialLocations = async () => {
+      const { data } = await supabase.from("motoboy_locations").select("*");
+      if (data) setLocations(data);
+    };
+    fetchInitialLocations();
+
     return () => {
       supabase.removeChannel(motoboyChannel);
       supabase.removeChannel(orderChannel);
+      supabase.removeChannel(locationChannel);
     };
   }, []);
 
@@ -200,11 +225,30 @@ export default function Dashboard() {
             </div>
             <button className={styles.mapViewRoutes}>Ver rotas</button>
           </div>
-          <div style={{width: "100%", height: "100%", background: "#0D1117", display: "flex", alignItems: "center", justifyContent: "center"}}>
-             <div style={{textAlign: "center"}}>
-                <Navigation size={48} color="var(--accent-color)" style={{marginBottom: "1rem", opacity: 0.5}} />
-                <p style={{color: "var(--text-muted)", fontSize: "0.9rem"}}>Visualizando {stats.onlineMotoboys} motoboys ativos</p>
-             </div>
+          <div style={{width: "100%", height: "100%", background: "#0D1117", overflowY: "auto", padding: "1rem"}}>
+             {locations.length === 0 ? (
+                <div style={{height: "100%", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column"}}>
+                  <Navigation size={48} color="var(--accent-color)" style={{marginBottom: "1rem", opacity: 0.2}} />
+                  <p style={{color: "var(--text-muted)", fontSize: "0.9rem"}}>Aguardando sinais GPS...</p>
+                </div>
+             ) : (
+                <div style={{display: "flex", flexDirection: "column", gap: "0.8rem"}}>
+                  {locations.map(loc => (
+                    <div key={loc.motoboy_id} style={{padding: "1rem", background: "rgba(255,255,255,0.05)", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.1)"}}>
+                      <div style={{display: "flex", justifyContent: "space-between", alignItems: "center"}}>
+                        <div style={{display: "flex", alignItems: "center", gap: "0.5rem"}}>
+                          <Bike size={16} color="var(--accent-color)" />
+                          <span style={{fontWeight: 600, fontSize: "0.9rem"}}>Motoboy Ativo</span>
+                        </div>
+                        <span style={{fontSize: "0.7rem", color: "var(--text-muted)"}}>Ativo: {new Date(loc.updated_at).toLocaleTimeString()}</span>
+                      </div>
+                      <div style={{fontSize: "0.8rem", color: "var(--text-secondary)", marginTop: "0.4rem"}}>
+                        📍 {loc.latitude.toFixed(6)}, {loc.longitude.toFixed(6)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+             )}
           </div>
         </div>
 

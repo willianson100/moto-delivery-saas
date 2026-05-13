@@ -24,12 +24,40 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 
+import { createClient } from "@/lib/supabase/browser";
+import { useEffect } from "react";
+
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [tenantName, setTenantName] = useState("Carregando...");
+  const supabase = createClient();
+
+  useEffect(() => {
+    const fetchTenant = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from("user_profiles")
+          .select("tenant_id")
+          .eq("id", user.id)
+          .single();
+        
+        if (profile?.tenant_id) {
+          const { data: tenant } = await supabase
+            .from("tenants")
+            .select("name")
+            .eq("id", profile.tenant_id)
+            .single();
+          if (tenant) setTenantName(tenant.name);
+        }
+      }
+    };
+    fetchTenant();
+  }, []);
 
   return (
     <div className={styles.layout}>
@@ -97,7 +125,7 @@ export default function DashboardLayout({
           <div className={styles.userProfile} style={{marginTop: "1rem"}}>
             <Image src="https://i.pravatar.cc/150?img=11" alt="Avatar" width={36} height={36} className={styles.avatar} />
             <div className={styles.userInfo}>
-              <span className={styles.userName}>Restaurante Sabor Caseiro</span>
+              <span className={styles.userName}>{tenantName}</span>
               <span className={styles.userRole}>ID: #12568</span>
             </div>
           </div>
@@ -116,7 +144,7 @@ export default function DashboardLayout({
               <Menu size={24} />
             </button>
             <div className={styles.restaurantSelector}>
-              Restaurante Sabor Caseiro <ChevronDown size={16} color="var(--text-secondary)" />
+              {tenantName} <ChevronDown size={16} color="var(--text-secondary)" />
             </div>
             <div className={styles.onlineStatus}>
               <div className={styles.onlineDot}></div>

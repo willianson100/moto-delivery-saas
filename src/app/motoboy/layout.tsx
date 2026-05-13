@@ -3,13 +3,16 @@
 import React from "react";
 import styles from "./layout.module.css";
 import Link from "next/link";
-import { Home, History, Wallet, User } from "lucide-react";
+import { Home, History, User } from "lucide-react";
+import { usePathname } from "next/navigation";
 
 export default function MotoboyLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const pathname = usePathname();
+
   return (
     <div style={{backgroundColor: "var(--bg-primary)", minHeight: "100vh", display: "flex", justifyContent: "center"}}>
       <div className={styles.mobileLayout}>
@@ -19,19 +22,15 @@ export default function MotoboyLayout({
         
         {/* Bottom Navigation */}
         <nav className={styles.bottomNav}>
-          <Link href="/motoboy" className={`${styles.navItem} ${styles.active}`}>
+          <Link href="/motoboy" className={`${styles.navItem} ${pathname === "/motoboy" ? styles.active : ""}`}>
             <Home size={24} />
             <span>Início</span>
           </Link>
-          <Link href="#" className={styles.navItem}>
+          <Link href="/motoboy/history" className={`${styles.navItem} ${pathname === "/motoboy/history" ? styles.active : ""}`}>
             <History size={24} />
             <span>Histórico</span>
           </Link>
-          <Link href="#" className={styles.navItem}>
-            <Wallet size={24} />
-            <span>Ganhos</span>
-          </Link>
-          <Link href="#" className={styles.navItem}>
+          <Link href="/motoboy/profile" className={`${styles.navItem} ${pathname === "/motoboy/profile" ? styles.active : ""}`}>
             <User size={24} />
             <span>Perfil</span>
           </Link>

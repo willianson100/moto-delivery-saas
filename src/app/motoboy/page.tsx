@@ -7,6 +7,7 @@ import {
   AlertTriangle, XCircle, ChevronRight, Bike, ToggleLeft
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/browser";
+import styles from "./page.module.css";
 
 // ─── Tipos ─────────────────────────────────────────────────────────────────
 type OrderStatus =
@@ -212,7 +213,34 @@ export default function MotoboyApp() {
   const [isOnline, setIsOnline] = useState(false);
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState<DeliveryOrder[]>([]);
-  const [activeOrder, setActiveOrder] = useState<any>(null);
+  const [activeOrders, setActiveOrders] = useState<any[]>([]);
+
+  // GPS Transmission
+  useEffect(() => {
+    if (!isOnline || !user) return;
+
+    const watchId = navigator.geolocation.watchPosition(
+      async (pos) => {
+        const { latitude, longitude, accuracy, heading, speed } = pos.coords;
+        await supabase
+          .from("motoboy_locations")
+          .upsert({
+            motoboy_id: user.id,
+            tenant_id: profile?.tenant_id,
+            latitude,
+            longitude,
+            accuracy,
+            heading,
+            speed,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'motoboy_id' });
+      },
+      (err) => console.error("Erro GPS:", err),
+      { enableHighAccuracy: true }
+    );
+
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, [isOnline, user, profile?.tenant_id]);
 
   // Carregar dados iniciais
   useEffect(() => {
@@ -231,13 +259,13 @@ export default function MotoboyApp() {
         .single();
       
       setProfile(profile);
-      setIsOnline(profile?.status === "online");
+      setIsOnline(profile?.is_online || false);
       fetchData(user.id);
       setLoading(false);
     };
     init();
 
-    // Realtime para novos pedidos
+    // Realtime para novos pedidos e mudanças de status
     const channel = supabase
       .channel("motoboy_updates")
       .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => {
@@ -249,24 +277,31 @@ export default function MotoboyApp() {
   }, [user?.id]);
 
   const fetchData = async (userId: string) => {
-    // Buscar pedidos disponíveis
+    // Buscar pedidos disponíveis no tenant
+    const { data: profile } = await supabase
+      .from("user_profiles")
+      .select("tenant_id")
+      .eq("id", userId)
+      .single();
+
     const { data: available } = await supabase
       .from("orders")
       .select("*")
       .eq("status", "pendente")
+      .eq("tenant_id", profile?.tenant_id)
       .order("created_at", { ascending: false });
     
     setOrders(available || []);
 
-    // Buscar pedido ativo deste motoboy
+    // Buscar sequência de pedidos ativos deste motoboy
     const { data: active } = await supabase
       .from("orders")
       .select("*")
       .eq("motoboy_id", userId)
-      .in("status", ["aceito", "em_entrega"])
-      .single();
+      .in("status", ["aceito", "buscando", "em_entrega"])
+      .order("created_at", { ascending: true });
     
-    setActiveOrder(active);
+    setActiveOrders(active || []);
   };
 
   const handleToggleOnline = async () => {
@@ -288,18 +323,13 @@ export default function MotoboyApp() {
     if (!error) fetchData(user.id);
   };
 
-  const handleStatusUpdate = async (nextStatus: string) => {
+  const handleStatusUpdate = async (orderId: string, nextStatus: string) => {
     const { error } = await supabase
       .from("orders")
       .update({ status: nextStatus })
-      .eq("id", activeOrder.id);
+      .eq("id", orderId);
     
-    if (!error) {
-      if (nextStatus === "entregue") {
-        setActiveOrder(null);
-      }
-      fetchData(user.id);
-    }
+    if (!error) fetchData(user.id);
   };
 
   if (loading) return <div className={styles.loading}>Carregando App...</div>;
@@ -313,9 +343,9 @@ export default function MotoboyApp() {
             <Bike size={24} />
           </div>
           <div>
-            <h2 className={styles.userName}>{profile?.full_name || "Motoboy"}</h2>
+            <h2 className={styles.userName}>{profile?.name || "Motoboy"}</h2>
             <span className={styles.userStatus}>
-              {isOnline ? "🟢 Disponível para entregas" : "⚪ Você está offline"}
+              {isOnline ? "🟢 Disponível" : "⚪ Offline"}
             </span>
           </div>
         </div>
@@ -323,7 +353,7 @@ export default function MotoboyApp() {
           onClick={handleToggleOnline} 
           className={`${styles.onlineBtn} ${isOnline ? styles.online : ""}`}
         >
-          {isOnline ? "FICAR OFFLINE" : "FICAR ONLINE"}
+          {isOnline ? "OFFLINE" : "ONLINE"}
         </button>
       </header>
 
@@ -332,53 +362,68 @@ export default function MotoboyApp() {
           <div className={styles.emptyState}>
             <div className={styles.emptyIcon}><Bike size={48} /></div>
             <h3>Você está Offline</h3>
-            <p>Fique online para começar a receber pedidos da sua região.</p>
+            <p>Fique online para receber pedidos.</p>
           </div>
-        ) : activeOrder ? (
-          /* TELA DE ENTREGA ATIVA */
-          <div className={styles.activeDelivery}>
-            <div className={styles.deliveryBadge}>ENTREGA EM ANDAMENTO</div>
-            
-            <div className={styles.deliverySection}>
-              <div className={styles.sectionLabel}><Store size={16} /> RETIRAR EM:</div>
-              <p className={styles.addressText}>{activeOrder.pickup_address || "Restaurante Central"}</p>
+        ) : activeOrders.length > 0 ? (
+          /* TELA DE ENTREGAS ATIVAS (SEQUÊNCIA) */
+          <div className={styles.activeSequence}>
+            <div className={styles.sequenceHeader}>
+              <span className={styles.sequenceCount}>Sequência: {activeOrders.length} pedido(s)</span>
             </div>
 
-            <div className={styles.deliverySection}>
-              <div className={styles.sectionLabel}><MapPin size={16} /> ENTREGAR EM:</div>
-              <p className={styles.addressTitle}>{activeOrder.customer_name}</p>
-              <p className={styles.addressText}>{activeOrder.address}</p>
-              <a 
-                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(activeOrder.address)}`}
-                target="_blank"
-                className={styles.gpsLink}
-              >
-                <Navigation size={18} /> ABRIR NO GPS
-              </a>
-            </div>
+            {activeOrders.map((order, index) => (
+              <div key={order.id} className={`${styles.activeDelivery} ${index > 0 ? styles.nextInSequence : ""}`}>
+                {index === 0 ? (
+                  <div className={styles.deliveryBadge}>ENTREGA ATUAL</div>
+                ) : (
+                  <div className={styles.nextBadge}>PRÓXIMA #{index + 1}</div>
+                )}
+                
+                <div className={styles.deliverySection}>
+                  <div className={styles.sectionLabel}><Store size={14} /> RETIRAR EM:</div>
+                  <p className={styles.addressText}>{order.restaurant_address || "Restaurante"}</p>
+                </div>
 
-            <div className={styles.deliveryFooter}>
-              <div className={styles.paymentInfo}>
-                <span>Pagamento: {activeOrder.payment_method}</span>
-                <strong>R$ {activeOrder.total_amount?.toFixed(2)}</strong>
+                <div className={styles.deliverySection}>
+                  <div className={styles.sectionLabel}><MapPin size={14} /> ENTREGAR EM:</div>
+                  <p className={styles.addressTitle}>{order.customer_name}</p>
+                  <p className={styles.addressText}>{order.delivery_address || order.address}</p>
+                  {index === 0 && (
+                    <a 
+                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(order.delivery_address || order.address)}`}
+                      target="_blank"
+                      className={styles.gpsLink}
+                    >
+                      <Navigation size={18} /> ABRIR NO GPS
+                    </a>
+                  )}
+                </div>
+
+                {index === 0 && (
+                  <div className={styles.deliveryFooter}>
+                    <div className={styles.paymentInfo}>
+                      <span>Forma de Pagamento: {order.payment_method || "Dinheiro"}</span>
+                    </div>
+
+                    {order.status === "aceito" || order.status === "buscando" ? (
+                      <button 
+                        onClick={() => handleStatusUpdate(order.id, "em_entrega")}
+                        className={styles.actionBtnPrimary}
+                      >
+                        <Package size={20} /> JÁ RETIREI O PEDIDO
+                      </button>
+                    ) : (
+                      <button 
+                        onClick={() => handleStatusUpdate(order.id, "entregue")}
+                        className={styles.actionBtnSuccess}
+                      >
+                        <CheckCircle size={20} /> FINALIZAR ENTREGA
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
-
-              {activeOrder.status === "aceito" ? (
-                <button 
-                  onClick={() => handleStatusUpdate("em_entrega")}
-                  className={styles.actionBtnPrimary}
-                >
-                  <Package size={20} /> JÁ RETIREI O PEDIDO
-                </button>
-              ) : (
-                <button 
-                  onClick={() => handleStatusUpdate("entregue")}
-                  className={styles.actionBtnSuccess}
-                >
-                  <CheckCircle size={20} /> FINALIZAR ENTREGA
-                </button>
-              )}
-            </div>
+            ))}
           </div>
         ) : (
           /* LISTA DE PEDIDOS DISPONÍVEIS */
@@ -394,9 +439,8 @@ export default function MotoboyApp() {
                 <div key={order.id} className={styles.orderCard}>
                   <div className={styles.orderHeader}>
                     <span className={styles.orderDist}>📍 {order.distance_km || "2.5"} km</span>
-                    <span className={styles.orderValue}>R$ {order.total_amount?.toFixed(2)}</span>
                   </div>
-                  <p className={styles.orderAddr}>{order.address}</p>
+                  <p className={styles.orderAddr}>{order.delivery_address || order.address}</p>
                   <button 
                     onClick={() => handleAcceptOrder(order.id)}
                     className={styles.acceptBtn}
@@ -410,7 +454,5 @@ export default function MotoboyApp() {
         )}
       </main>
     </div>
-  );
-}
   );
 }

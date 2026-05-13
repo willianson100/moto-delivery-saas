@@ -8,10 +8,59 @@ import {
   Users, 
   Store, 
   Clock, 
-  AlertTriangle 
+  AlertTriangle,
+  CheckCircle
 } from "lucide-react";
 
+import { useState, useEffect } from "react";
+import { createClient } from "@/lib/supabase/browser";
+
 export default function AdminMaster() {
+  const supabase = createClient();
+  const [tenants, setTenants] = useState<any[]>([]);
+  const [stats, setStats] = useState({
+    mrr: 0,
+    activeTenants: 0,
+    totalMotoboys: 0,
+    trialTenants: 0
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      // 1. Buscar Tenants
+      const { data: tenantData } = await supabase
+        .from("tenants")
+        .select("*")
+        .order("created_at", { ascending: false });
+      
+      setTenants(tenantData || []);
+
+      // 2. Buscar Contagem de Motoboys
+      const { count: motoboyCount } = await supabase
+        .from("user_profiles")
+        .select("*", { count: 'exact', head: true })
+        .eq("role", "motoboy");
+
+      // 3. Calcular Stats (Simulado por enquanto com base nos dados reais)
+      const active = tenantData?.filter(t => t.subscription_status === "active").length || 0;
+      const trial = tenantData?.filter(t => t.subscription_status === "trial").length || 0;
+      
+      setStats({
+        mrr: active * 249.90, // Exemplo de valor por plano
+        activeTenants: active,
+        totalMotoboys: motoboyCount || 0,
+        trialTenants: trial
+      });
+
+      setLoading(false);
+    };
+
+    fetchData();
+  }, []);
+
+  if (loading) return <div className={styles.dashboard}>Carregando dados mestre...</div>;
+
   return (
     <div className={styles.dashboard}>
       
@@ -34,8 +83,8 @@ export default function AdminMaster() {
               <TrendingUp size={20} />
             </div>
           </div>
-          <div className={styles.kpiValue}>R$ 14.850,00</div>
-          <div className={`${styles.kpiSub} ${styles.up}`}>↑ 12% este mês</div>
+          <div className={styles.kpiValue}>R$ {stats.mrr.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+          <div className={`${styles.kpiSub} ${styles.up}`}>↑ Baseado em {stats.activeTenants} ativos</div>
         </div>
 
         <div className={styles.kpiCard}>
@@ -45,8 +94,8 @@ export default function AdminMaster() {
               <Building2 size={20} />
             </div>
           </div>
-          <div className={styles.kpiValue}>42</div>
-          <div className={`${styles.kpiSub} ${styles.up}`}>+3 novas esta semana</div>
+          <div className={styles.kpiValue}>{stats.activeTenants}</div>
+          <div className={`${styles.kpiSub} ${styles.up}`}>+ {stats.trialTenants} em trial</div>
         </div>
 
         <div className={styles.kpiCard}>
@@ -56,19 +105,19 @@ export default function AdminMaster() {
               <Users size={20} />
             </div>
           </div>
-          <div className={styles.kpiValue}>315</div>
+          <div className={styles.kpiValue}>{stats.totalMotoboys}</div>
           <div className={styles.kpiSub} style={{color: "var(--text-muted)"}}>Em toda a plataforma</div>
         </div>
 
         <div className={styles.kpiCard}>
           <div className={styles.kpiHeader}>
-            <span>Assinaturas a Vencer</span>
+            <span>Trial Ativos</span>
             <div className={styles.kpiIcon} style={{backgroundColor: "var(--warning-color)"}}>
-              <CreditCard size={20} />
+              <Clock size={20} />
             </div>
           </div>
-          <div className={styles.kpiValue}>5</div>
-          <div className={`${styles.kpiSub} ${styles.down}`}>Vencem em 7 dias</div>
+          <div className={styles.kpiValue}>{stats.trialTenants}</div>
+          <div className={`${styles.kpiSub} ${styles.down}`}>Convertendo em breve</div>
         </div>
       </div>
 
@@ -83,34 +132,47 @@ export default function AdminMaster() {
           <table className={styles.table}>
             <thead>
               <tr>
-                <th>Empresa</th>
+                <th>Empresa / Documento</th>
+                <th>Endereço / IP</th>
                 <th>Status</th>
                 <th>Plano</th>
-                <th>Motoboys</th>
+                <th>Criado em</th>
                 <th>Ações</th>
               </tr>
             </thead>
             <tbody>
-              {[
-                { name: "Pizzaria Napoli", status: "active", statusText: "Ativo", plan: "Profissional", drivers: 12 },
-                { name: "Hamburgueria Texas", status: "active", statusText: "Ativo", plan: "Profissional", drivers: 8 },
-                { name: "Açaí do Bom", status: "trial", statusText: "Teste (12 dias)", plan: "Trial", drivers: 3 },
-                { name: "Sushi Express", status: "active", statusText: "Ativo", plan: "Básico", drivers: 5 },
-                { name: "Distribuidora Gelada", status: "expired", statusText: "Vencido", plan: "Profissional", drivers: 15 },
-              ].map((tenant, i) => (
-                <tr key={i}>
+              {tenants.map((tenant) => (
+                <tr key={tenant.id}>
                   <td>
                     <div style={{display: "flex", alignItems: "center", gap: "0.8rem"}}>
                       <div style={{width: "32px", height: "32px", borderRadius: "4px", backgroundColor: "var(--bg-tertiary)", display: "flex", alignItems: "center", justifyContent: "center"}}>
                         <Store size={16} color="var(--text-secondary)" />
                       </div>
-                      <span style={{fontWeight: 500}}>{tenant.name}</span>
+                      <div>
+                        <div style={{fontWeight: 600}}>{tenant.name}</div>
+                        <div style={{fontSize: "0.7rem", color: "var(--text-muted)"}}>{tenant.tax_id || "Sem documento"}</div>
+                      </div>
                     </div>
                   </td>
-                  <td><span className={`${styles.badge} ${styles[tenant.status]}`}>{tenant.statusText}</span></td>
-                  <td>{tenant.plan}</td>
-                  <td>{tenant.drivers} cadastrados</td>
-                  <td><button className={styles.actionBtn}>Gerenciar</button></td>
+                  <td>
+                    <div style={{fontSize: "0.85rem", color: "var(--text-secondary)"}}>
+                      {tenant.street ? `${tenant.street}, ${tenant.number}` : "Sem endereço"}
+                      <div style={{fontSize: "0.7rem", opacity: 0.6}}>IP: {tenant.registration_ip || "Desconhecido"}</div>
+                    </div>
+                  </td>
+                  <td>
+                    <span className={`${styles.badge} ${styles[tenant.subscription_status || 'trial']}`}>
+                      {tenant.subscription_status === 'active' ? 'Ativo' : (tenant.subscription_status === 'trial' ? 'Teste' : (tenant.subscription_status === 'blocked' ? 'Bloqueado' : 'Expirado'))}
+                    </span>
+                  </td>
+                  <td>{tenant.plan || 'Trial'}</td>
+                  <td>{new Date(tenant.created_at).toLocaleDateString()}</td>
+                  <td>
+                    <div style={{display: "flex", gap: "0.5rem"}}>
+                      <button className={styles.actionBtn}>Gerenciar</button>
+                      <button className={styles.actionBtn} style={{backgroundColor: "var(--error-bg)", color: "var(--error-color)", border: "none"}}>Bloquear</button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -130,8 +192,8 @@ export default function AdminMaster() {
                   <CheckCircle size={18} />
                 </div>
                 <div>
-                  <div style={{fontWeight: 600, color: "var(--text-primary)"}}>35 Empresas</div>
-                  <div style={{fontSize: "0.8rem", color: "var(--text-secondary)"}}>Pagamento em dia</div>
+                  <div style={{fontWeight: 600, color: "var(--text-primary)"}}>{stats.activeTenants} Empresas</div>
+                  <div style={{fontSize: "0.8rem", color: "var(--text-secondary)"}}>Assinaturas pagas</div>
                 </div>
               </div>
             </div>
@@ -142,41 +204,19 @@ export default function AdminMaster() {
                   <Clock size={18} />
                 </div>
                 <div>
-                  <div style={{fontWeight: 600, color: "var(--text-primary)"}}>4 Empresas</div>
-                  <div style={{fontSize: "0.8rem", color: "var(--text-secondary)"}}>Em teste gratuito (45 dias)</div>
-                </div>
-              </div>
-            </div>
-
-            <div className={styles.statusItem}>
-              <div style={{display: "flex", alignItems: "center", gap: "1rem"}}>
-                <div className={styles.kpiIcon} style={{backgroundColor: "var(--error-bg)", color: "var(--error-color)", width: "36px", height: "36px"}}>
-                  <AlertTriangle size={18} />
-                </div>
-                <div>
-                  <div style={{fontWeight: 600, color: "var(--text-primary)"}}>3 Empresas</div>
-                  <div style={{fontSize: "0.8rem", color: "var(--text-secondary)"}}>Assinatura vencida/bloqueada</div>
+                  <div style={{fontWeight: 600, color: "var(--text-primary)"}}>{stats.trialTenants} Empresas</div>
+                  <div style={{fontSize: "0.8rem", color: "var(--text-secondary)"}}>Em teste gratuito</div>
                 </div>
               </div>
             </div>
           </div>
           
           <button className={styles.actionBtn} style={{width: "100%", marginTop: "1.5rem", padding: "0.8rem"}}>
-            Ver Relatório Financeiro Completo
+            Configurar Planos e Preços
           </button>
         </div>
-
       </div>
     </div>
   );
 }
 
-// Criando um componente de icone fake para o CheckCircle ja que nao importamos
-function CheckCircle({ size }: { size: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-      <polyline points="22 4 12 14.01 9 11.01"></polyline>
-    </svg>
-  );
-}

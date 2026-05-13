@@ -16,6 +16,15 @@ CREATE TABLE IF NOT EXISTS tenants (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name TEXT NOT NULL,
   slug TEXT UNIQUE,                              -- URL amigável (ex: pizzaria-napoli)
+  tax_id TEXT UNIQUE,                            -- CNPJ ou CPF para evitar múltiplos trials
+  registration_ip TEXT,                          -- IP de cadastro para segurança
+  -- Endereço Físico
+  cep TEXT,
+  street TEXT,
+  number TEXT,
+  neighborhood TEXT,
+  city TEXT,
+  state TEXT,
   plan TEXT NOT NULL DEFAULT 'trial'
     CHECK (plan IN ('trial', 'basic', 'professional')),
   subscription_status TEXT NOT NULL DEFAULT 'trial'

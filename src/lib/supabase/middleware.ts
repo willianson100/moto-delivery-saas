@@ -56,21 +56,74 @@ export async function updateSession(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser();
 
+  const url = request.nextUrl.clone();
+  const pathname = url.pathname;
+
   // Redirecionamento de proteção
-  const isAuthPage = request.nextUrl.pathname.startsWith("/login") || 
-                     request.nextUrl.pathname.startsWith("/forgot-password") ||
-                     request.nextUrl.pathname.startsWith("/reset-password");
+  const isAuthPage = pathname.startsWith("/login") || 
+                     pathname.startsWith("/forgot-password") ||
+                     pathname.startsWith("/reset-password");
   
-  const isProtectedPage = request.nextUrl.pathname.startsWith("/dashboard") ||
-                          request.nextUrl.pathname.startsWith("/motoboy") ||
-                          request.nextUrl.pathname.startsWith("/admin-master");
+  const isProtectedPage = pathname.startsWith("/dashboard") ||
+                           pathname.startsWith("/motoboy") ||
+                           pathname.startsWith("/admin-master");
 
   if (!user && isProtectedPage) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  if (user && isAuthPage) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+  if (user) {
+    // Buscar perfil para saber o role e o tenant_id
+    const { data: profile } = await supabase
+      .from("user_profiles")
+      .select("role, tenant_id")
+      .eq("id", user.id)
+      .single();
+
+    const role = profile?.role;
+    const tenantId = profile?.tenant_id;
+
+    // Verificar status da assinatura do Tenant
+    let isExpired = false;
+    if (tenantId && role !== "admin_master") {
+      const { data: tenant } = await supabase
+        .from("tenants")
+        .select("subscription_status, trial_ends_at")
+        .eq("id", tenantId)
+        .single();
+      
+      if (tenant) {
+        const now = new Date();
+        const trialEnd = new Date(tenant.trial_ends_at);
+        isExpired = tenant.subscription_status === "expired" || 
+                    tenant.subscription_status === "blocked" ||
+                    (tenant.subscription_status === "trial" && now > trialEnd);
+      }
+    }
+
+    // Se estiver na página de login ou billing, não redireciona novamente
+    if (isAuthPage || pathname.includes("/billing")) return response;
+
+    // Se estiver expirado, redireciona para a página de cobrança/bloqueio
+    if (isExpired && isProtectedPage) {
+      return NextResponse.redirect(new URL("/dashboard/billing", request.url));
+    }
+
+    // Proteção de rotas cruzadas (Apenas para contas ATIVAS)
+    if (pathname.startsWith("/admin-master") && role !== "admin_master") {
+      const target = role === "motoboy" ? "/motoboy" : "/dashboard";
+      return NextResponse.redirect(new URL(target, request.url));
+    }
+
+    if (pathname.startsWith("/dashboard") && (role === "motoboy" || role === "admin_master")) {
+      const target = role === "admin_master" ? "/admin-master" : "/motoboy";
+      return NextResponse.redirect(new URL(target, request.url));
+    }
+
+    if (pathname.startsWith("/motoboy") && role !== "motoboy") {
+      const target = role === "admin_master" ? "/admin-master" : "/dashboard";
+      return NextResponse.redirect(new URL(target, request.url));
+    }
   }
 
   return response;

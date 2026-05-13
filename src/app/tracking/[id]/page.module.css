@@ -174,11 +174,58 @@
   gap: 1rem;
 }
 
+.loading, .error {
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-primary);
+  font-size: 1.2rem;
+  background-color: var(--bg-primary);
+}
+
+.mapOverlay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.1) 0%, transparent 70%);
+}
+
+.locationMarker {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  background-color: var(--accent-color);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 20px rgba(99, 102, 241, 0.5);
+  border: 3px solid white;
+}
+
+.accuracyCircle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: rgba(99, 102, 241, 0.2);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  border-radius: 50%;
+  z-index: -1;
+}
+
 .driverAvatar {
   width: 48px;
   height: 48px;
   border-radius: 50%;
-  object-fit: cover;
+  background-color: var(--bg-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border: 2px solid var(--border-color);
 }
 
